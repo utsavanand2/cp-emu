@@ -13,7 +13,7 @@ import (
 	"github.com/lorenzodonini/ocpp-go/ocppj"
 	"github.com/lorenzodonini/ocpp-go/ws"
 	"github.com/sirupsen/logrus"
-	"github.com/utsavanand2/cp-emu/handler"
+	"github.com/utsavanand2/cpemu/handler"
 )
 
 func CreateAndRunChargePoint(chargingStationID string, centralSystemURL string) error {

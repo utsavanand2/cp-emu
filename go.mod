@@ -1,4 +1,4 @@
-module github.com/utsavanand2/cp-emu
+module github.com/utsavanand2/cpemu
 
 go 1.21.2
 
