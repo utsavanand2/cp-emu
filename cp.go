@@ -18,6 +18,7 @@ import (
 
 func CreateAndRunChargePoint(ctx context.Context, chargingStationID string, centralSystemURL string, logLevel logrus.Level) error {
 	log := logrus.New()
+	log.SetLevel(logLevel)
 	dispatcher := ocppj.NewDefaultClientDispatcher(ocppj.NewFIFOClientQueue(0))
 	client := ws.NewClient()
 	endpoint := ocppj.NewClient(chargingStationID, client, dispatcher, nil, core.Profile, localauth.Profile, firmware.Profile, reservation.Profile, remotetrigger.Profile, smartcharging.Profile)
