@@ -51,7 +51,5 @@ func CreateAndRunChargePoint(ctx context.Context, chargingStationID string, cent
 	handler.StartTickerToSendStatusNotifications(ctx)
 	handler.StartTickerToSendMeterValues(ctx)
 
-	<-ctx.Done()
-
 	return nil
 }
