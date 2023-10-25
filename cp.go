@@ -38,18 +38,24 @@ func CreateAndRunChargePoint(ctx context.Context, chargingStationID string, cent
 
 	ocppj.SetLogger(log)
 
-	err := chargePoint.Start(centralSystemURL)
-	if err != nil {
-		return err
-	}
-	log.Infof("connected to central system at %v", centralSystemURL)
+	select {
+	case <-ctx.Done():
+		chargePoint.Stop()
+		return nil
+	default:
+		err := chargePoint.Start(centralSystemURL)
+		if err != nil {
+			return err
+		}
+		log.Infof("connected to central system at %v", centralSystemURL)
 
-	_, err = chargePoint.BootNotification("test", "cmev")
-	if err != nil {
-		return err
+		_, err = chargePoint.BootNotification("test", "cmev")
+		if err != nil {
+			return err
+		}
+		handler.StartTickerToSendStatusNotifications(ctx)
+		handler.StartTickerToSendMeterValues(ctx)
 	}
-	handler.StartTickerToSendStatusNotifications(ctx)
-	handler.StartTickerToSendMeterValues(ctx)
 
 	return nil
 }
