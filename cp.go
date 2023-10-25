@@ -16,7 +16,7 @@ import (
 	"github.com/utsavanand2/cpemu/handler"
 )
 
-func CreateAndRunChargePoint(ctx context.Context, chargingStationID string, centralSystemURL string) error {
+func CreateAndRunChargePoint(ctx context.Context, chargingStationID string, centralSystemURL string, logLevel logrus.Level) error {
 	log := logrus.New()
 	dispatcher := ocppj.NewDefaultClientDispatcher(ocppj.NewFIFOClientQueue(0))
 	client := ws.NewClient()
@@ -49,7 +49,6 @@ func CreateAndRunChargePoint(ctx context.Context, chargingStationID string, cent
 	}
 	handler.StartTickerToSendStatusNotifications(ctx)
 	handler.StartTickerToSendMeterValues(ctx)
-	// handler.RFIDStartAndStopCharging(ctx)
 
 	<-ctx.Done()
 

@@ -136,7 +136,7 @@ func (handler *ChargePointHandler) StartTickerToSendMeterValues(ctx context.Cont
 							handler.log.Error("conf is nil")
 							return
 						}
-						handler.logDefault(core.MeterValuesFeatureName).Infof("%s sent", conf.GetFeatureName())
+						handler.logDefault(core.MeterValuesFeatureName).Debugf("%s sent", conf.GetFeatureName())
 					}(handler.chargePoint)
 				}
 			}
@@ -146,7 +146,6 @@ func (handler *ChargePointHandler) StartTickerToSendMeterValues(ctx context.Cont
 
 func (handler *ChargePointHandler) RFIDStartAndStopCharging(ctx context.Context) {
 	ticker := time.NewTicker(time.Second * 15)
-	var errorCount int = 0
 	const idtag string = "test_rfid"
 	go func(ctx context.Context) {
 		for {
@@ -158,19 +157,17 @@ func (handler *ChargePointHandler) RFIDStartAndStopCharging(ctx context.Context)
 				go func(chargePoint ocpp16.ChargePoint) {
 					conf, err := chargePoint.Authorize(idtag)
 					if err != nil {
-						errorCount += 1
 						handler.log.Error(err)
 					}
 					if conf == nil {
 						handler.log.Error("conf is nil")
 						return
 					}
-					handler.log.Infof("RFID authorize response %s", conf.IdTagInfo.Status)
+					handler.log.Debugf("RFID authorize response %s", conf.IdTagInfo.Status)
 					if conf.IdTagInfo.Status == types.AuthorizationStatusAccepted {
 						if handler.connectors[1].CurrentTransaction == 0 {
 							conf, err := chargePoint.StartTransaction(1, idtag, handler.meterValue, types.NewDateTime(time.Now()))
 							if err != nil {
-								errorCount += 1
 								handler.log.Error(err)
 							}
 
@@ -180,7 +177,6 @@ func (handler *ChargePointHandler) RFIDStartAndStopCharging(ctx context.Context)
 						} else {
 							_, err := chargePoint.StopTransaction(handler.meterValue, types.NewDateTime(time.Now()), handler.connectors[1].CurrentTransaction)
 							if err != nil {
-								errorCount += 1
 								handler.log.Error(err)
 							}
 							handler.connectors[1].CurrentTransaction = 0
@@ -190,8 +186,7 @@ func (handler *ChargePointHandler) RFIDStartAndStopCharging(ctx context.Context)
 
 						_, err = handler.chargePoint.StatusNotification(1, core.NoError, handler.status)
 						if err != nil {
-							errorCount += 1
-							handler.log.Info(err)
+							handler.log.Error(err)
 						}
 					}
 				}(handler.chargePoint)
@@ -215,7 +210,7 @@ func (handler *ChargePointHandler) OnChangeAvailability(request *core.ChangeAvai
 	} else {
 		handler.connectors[request.ConnectorId].Status = core.ChargePointStatusAvailable
 	}
-	handler.logDefault(request.GetFeatureName()).Infof("change availability for connector %v", request.ConnectorId)
+	handler.logDefault(request.GetFeatureName()).Debugf("change availability for connector %v", request.ConnectorId)
 	go handler.updateStatus(handler, request.ConnectorId, handler.connectors[request.ConnectorId].Status)
 	return core.NewChangeAvailabilityConfirmation(core.AvailabilityStatusAccepted), nil
 }
@@ -231,7 +226,7 @@ func (handler *ChargePointHandler) OnChangeConfiguration(request *core.ChangeCon
 	}
 	configKey.Value = &request.Value
 	handler.configuration[request.Key] = configKey
-	handler.logDefault(request.GetFeatureName()).Infof("changed configuration for parameter %v to %v", configKey.Key, configKey.Value)
+	handler.logDefault(request.GetFeatureName()).Debugf("changed configuration for parameter %v to %v", configKey.Key, configKey.Value)
 	if configKey.Key == MeterValueSampleInterval {
 		if handler.lastContextCancel != nil {
 			handler.lastContextCancel()
@@ -244,26 +239,26 @@ func (handler *ChargePointHandler) OnChangeConfiguration(request *core.ChangeCon
 }
 
 func (handler *ChargePointHandler) OnClearCache(request *core.ClearCacheRequest) (confirmation *core.ClearCacheConfirmation, err error) {
-	handler.logDefault(request.GetFeatureName()).Infof("cleared mocked cache")
+	handler.logDefault(request.GetFeatureName()).Debugf("cleared mocked cache")
 	return core.NewClearCacheConfirmation(core.ClearCacheStatusAccepted), nil
 }
 
 func (handler *ChargePointHandler) OnDataTransfer(request *core.DataTransferRequest) (confirmation *core.DataTransferConfirmation, err error) {
-	handler.logDefault(request.GetFeatureName()).Infof("data transfer [Vendor: %v Message: %v]: %v", request.VendorId, request.MessageId, request.Data)
+	handler.logDefault(request.GetFeatureName()).Debugf("data transfer [Vendor: %v Message: %v]: %v", request.VendorId, request.MessageId, request.Data)
 	return core.NewDataTransferConfirmation(core.DataTransferStatusAccepted), nil
 }
 
 func (handler *ChargePointHandler) OnGetConfiguration(request *core.GetConfigurationRequest) (confirmation *core.GetConfigurationConfirmation, err error) {
-	handler.log.Infof("recieved request: %+v", request)
+	handler.log.Debugf("recieved request: %+v", request)
 	var resultKeys []core.ConfigurationKey
 	var unknownKeys []string
 	for _, key := range request.Key {
 		configKey, ok := handler.configuration[key]
 		if !ok {
-			handler.log.Info("unknown key")
+			handler.log.Debug("unknown key")
 			unknownKeys = append(unknownKeys, *configKey.Value)
 		} else {
-			handler.log.Infof("config key: %v", configKey)
+			handler.log.Debugf("config key: %v", configKey)
 			resultKeys = append(resultKeys, configKey)
 		}
 	}
@@ -274,7 +269,7 @@ func (handler *ChargePointHandler) OnGetConfiguration(request *core.GetConfigura
 		}
 	}
 
-	handler.logDefault(request.GetFeatureName()).Infof("returning configuration for requested keys: %v", request.Key)
+	handler.logDefault(request.GetFeatureName()).Debugf("returning configuration for requested keys: %v", request.Key)
 	conf := core.NewGetConfigurationConfirmation(resultKeys)
 	if conf == nil {
 		handler.log.Error("conf is nil")
@@ -292,7 +287,7 @@ func (handler *ChargePointHandler) OnRemoteStartTransaction(request *core.Remote
 	} else if connector.Availability != core.AvailabilityTypeOperative || connector.Status != core.ChargePointStatusPreparing || connector.CurrentTransaction > 0 {
 		return core.NewRemoteStartTransactionConfirmation(types.RemoteStartStopStatusRejected), nil
 	}
-	handler.logDefault(request.GetFeatureName()).Infof("started transaction %v on connector %v", connector.CurrentTransaction, connectorID)
+	handler.logDefault(request.GetFeatureName()).Debugf("started transaction %v on connector %v", connector.CurrentTransaction, connectorID)
 	go func() {
 		conf, err := handler.chargePoint.StartTransaction(connectorID, request.IdTag, handler.meterValue, types.NewDateTime(time.Now()))
 		if err != nil {
@@ -303,7 +298,7 @@ func (handler *ChargePointHandler) OnRemoteStartTransaction(request *core.Remote
 			handler.log.Error("conf is nil")
 			return
 		}
-		handler.log.Infof("%+v", conf)
+		handler.log.Debugf("%+v", conf)
 		for _, val := range handler.connectors {
 			val.CurrentTransaction = conf.TransactionId
 			val.Status = core.ChargePointStatusCharging
@@ -324,7 +319,7 @@ func (handler *ChargePointHandler) OnRemoteStopTransaction(request *core.RemoteS
 	for key, val := range handler.connectors {
 		handler.log.Infof("current tx: %d, request tx: %d", val.CurrentTransaction, request.TransactionId)
 		if val.CurrentTransaction == request.TransactionId {
-			handler.logDefault(request.GetFeatureName()).Infof("stopped transaction %v on connector %v", val.CurrentTransaction, key)
+			handler.logDefault(request.GetFeatureName()).Debugf("stopped transaction %v on connector %v", val.CurrentTransaction, key)
 			val.CurrentTransaction = 0
 			val.CurrentReservation = 0
 			handler.activePowerImport = 0
@@ -361,14 +356,14 @@ func (handler *ChargePointHandler) OnUnlockConnector(request *core.UnlockConnect
 		handler.logDefault(request.GetFeatureName()).Errorf("couldn't unlock invalid connector %v", request.ConnectorId)
 		return core.NewUnlockConnectorConfirmation(core.UnlockStatusNotSupported), nil
 	}
-	handler.logDefault(request.GetFeatureName()).Infof("unlocked connector %v", request.ConnectorId)
+	handler.logDefault(request.GetFeatureName()).Debugf("unlocked connector %v", request.ConnectorId)
 	return core.NewUnlockConnectorConfirmation(core.UnlockStatusUnlocked), nil
 }
 
 // ------------- Local authorization list profile callbacks -------------
 
 func (handler *ChargePointHandler) OnGetLocalListVersion(request *localauth.GetLocalListVersionRequest) (confirmation *localauth.GetLocalListVersionConfirmation, err error) {
-	handler.logDefault(request.GetFeatureName()).Infof("returning current local list version: %v", handler.localAuthListVersion)
+	handler.logDefault(request.GetFeatureName()).Debugf("returning current local list version: %v", handler.localAuthListVersion)
 	return localauth.NewGetLocalListVersionConfirmation(handler.localAuthListVersion), nil
 }
 
@@ -405,7 +400,7 @@ func (handler *ChargePointHandler) OnUpdateFirmware(request *firmware.UpdateFirm
 	if request.RetryInterval != nil {
 		retryInterval = *request.RetryInterval
 	}
-	handler.logDefault(request.GetFeatureName()).Infof("starting update firmware procedure")
+	handler.logDefault(request.GetFeatureName()).Debugf("starting update firmware procedure")
 	go handler.updateFirmware(request.Location, request.RetrieveDate, retries, retryInterval)
 	return firmware.NewUpdateFirmwareConfirmation(), nil
 }
@@ -413,7 +408,7 @@ func (handler *ChargePointHandler) OnUpdateFirmware(request *firmware.UpdateFirm
 // ------------- Remote trigger profile callbacks -------------
 
 func (handler *ChargePointHandler) OnTriggerMessage(request *remotetrigger.TriggerMessageRequest) (confirmation *remotetrigger.TriggerMessageConfirmation, err error) {
-	handler.logDefault(request.GetFeatureName()).Infof("received trigger for %v", request.RequestedMessage)
+	handler.logDefault(request.GetFeatureName()).Debugf("received trigger for %v", request.RequestedMessage)
 	status := remotetrigger.TriggerMessageStatusRejected
 	switch request.RequestedMessage {
 	case core.BootNotificationFeatureName:
@@ -425,7 +420,7 @@ func (handler *ChargePointHandler) OnTriggerMessage(request *remotetrigger.Trigg
 				handler.log.Error("conf is nil")
 				return
 			}
-			handler.logDefault(core.BootNotificationFeatureName).Infof("boot notification sent: %v", conf.Status)
+			handler.logDefault(core.BootNotificationFeatureName).Debugf("boot notification sent: %v", conf.Status)
 		}()
 		status = remotetrigger.TriggerMessageStatusAccepted
 	case firmware.DiagnosticsStatusNotificationFeatureName:
@@ -433,7 +428,7 @@ func (handler *ChargePointHandler) OnTriggerMessage(request *remotetrigger.Trigg
 		go func() {
 			_, e := chargePoint.DiagnosticsStatusNotification(firmware.DiagnosticsStatusIdle)
 			checkError(e)
-			handler.logDefault(firmware.DiagnosticsStatusNotificationFeatureName).Info("diagnostics status notified")
+			handler.logDefault(firmware.DiagnosticsStatusNotificationFeatureName).Debug("diagnostics status notified")
 		}()
 		status = remotetrigger.TriggerMessageStatusAccepted
 	case firmware.FirmwareStatusNotificationFeatureName:
@@ -448,7 +443,7 @@ func (handler *ChargePointHandler) OnTriggerMessage(request *remotetrigger.Trigg
 				handler.log.Error("conf is nil")
 				return
 			}
-			handler.logDefault(core.HeartbeatFeatureName).Infof("clock synchronized: %v", conf.CurrentTime.FormatTimestamp())
+			handler.logDefault(core.HeartbeatFeatureName).Debugf("clock synchronized: %v", conf.CurrentTime.FormatTimestamp())
 		}()
 		status = remotetrigger.TriggerMessageStatusAccepted
 	case core.MeterValuesFeatureName:
@@ -466,12 +461,12 @@ func (handler *ChargePointHandler) OnTriggerMessage(request *remotetrigger.Trigg
 				handler.log.Error("conf is nil")
 				return
 			}
-			handler.logDefault(core.MeterValuesFeatureName).Infof("%s sent", conf.GetFeatureName())
+			handler.logDefault(core.MeterValuesFeatureName).Debugf("%s sent", conf.GetFeatureName())
 		}(handler.chargePoint)
 		status = remotetrigger.TriggerMessageStatusAccepted
 	case core.StatusNotificationFeatureName:
 		connectorID := 1
-		handler.log.Infof("%v", request)
+		handler.log.Debugf("%v", request)
 		// Check if requested connector is valid and status can be retrieved
 		if !handler.isValidConnectorID(connectorID) {
 			handler.logDefault(request.GetFeatureName()).Errorf("cannot trigger %v: requested invalid connector %v", request.RequestedMessage, connectorID)
@@ -483,14 +478,14 @@ func (handler *ChargePointHandler) OnTriggerMessage(request *remotetrigger.Trigg
 			if c, ok := handler.connectors[connectorID]; ok {
 				status = c.Status
 			}
-			handler.log.Infof("%v %v %v", connectorID, handler.errorCode, status)
+			handler.log.Debugf("%v %v %v", connectorID, handler.errorCode, status)
 			conf, e := chargePoint.StatusNotification(connectorID, handler.errorCode, status)
 			checkError(e)
 			if conf == nil {
 				handler.log.Error("conf is nil")
 				return
 			}
-			handler.logDefault(conf.GetFeatureName()).Infof("status for connector %v sent: %v", connectorID, status)
+			handler.logDefault(conf.GetFeatureName()).Debugf("status for connector %v sent: %v", connectorID, status)
 		}(handler.chargePoint)
 		status = remotetrigger.TriggerMessageStatusAccepted
 	default:
@@ -509,7 +504,7 @@ func (handler *ChargePointHandler) OnReserveNow(request *reservation.ReserveNowR
 		return reservation.NewReserveNowConfirmation(reservation.ReservationStatusOccupied), nil
 	}
 	connector.CurrentReservation = request.ReservationId
-	handler.logDefault(request.GetFeatureName()).Infof("reservation %v for connector %v accepted", request.ReservationId, request.ConnectorId)
+	handler.logDefault(request.GetFeatureName()).Debugf("reservation %v for connector %v accepted", request.ReservationId, request.ConnectorId)
 	go handler.updateStatus(handler, request.ConnectorId, core.ChargePointStatusReserved)
 	// TODO: automatically remove reservation after expiryDate
 	return reservation.NewReserveNowConfirmation(reservation.ReservationStatusAccepted), nil
@@ -522,11 +517,11 @@ func (handler *ChargePointHandler) OnCancelReservation(request *reservation.Canc
 			if v.Status == core.ChargePointStatusReserved {
 				go handler.updateStatus(handler, k, core.ChargePointStatusAvailable)
 			}
-			handler.logDefault(request.GetFeatureName()).Infof("reservation %v for connector %v canceled", request.ReservationId, k)
+			handler.logDefault(request.GetFeatureName()).Debugf("reservation %v for connector %v canceled", request.ReservationId, k)
 			return reservation.NewCancelReservationConfirmation(reservation.CancelReservationStatusAccepted), nil
 		}
 	}
-	handler.logDefault(request.GetFeatureName()).Infof("couldn't cancel reservation %v: reservation not found!", request.ReservationId)
+	handler.logDefault(request.GetFeatureName()).Debugf("couldn't cancel reservation %v: reservation not found!", request.ReservationId)
 	return reservation.NewCancelReservationConfirmation(reservation.CancelReservationStatusRejected), nil
 }
 
@@ -569,20 +564,20 @@ func (handler *ChargePointHandler) updateStatus(stateHandler *ChargePointHandler
 	} else {
 		stateHandler.connectors[connector].Status = status
 	}
-	handler.log.Infof("error code: %v, connector: %v, status: %v", stateHandler.errorCode, connector, status)
+	handler.log.Debugf("error code: %v, connector: %v, status: %v", stateHandler.errorCode, connector, status)
 	statusConfirmation, err := chargePoint.StatusNotification(connector, stateHandler.errorCode, status)
 	checkError(err)
 	if connector == 0 {
-		handler.logDefault(statusConfirmation.GetFeatureName()).Infof("status for all connectors updated to %v", status)
+		handler.logDefault(statusConfirmation.GetFeatureName()).Debugf("status for all connectors updated to %v", status)
 	} else {
-		handler.logDefault(statusConfirmation.GetFeatureName()).Infof("status for connector %v updated to %v", connector, status)
+		handler.logDefault(statusConfirmation.GetFeatureName()).Debugf("status for connector %v updated to %v", connector, status)
 	}
 }
 
 func (handler *ChargePointHandler) updateFirmwareStatus(status firmware.FirmwareStatus, props ...func(request *firmware.FirmwareStatusNotificationRequest)) {
 	statusConfirmation, err := chargePoint.FirmwareStatusNotification(status, props...)
 	checkError(err)
-	handler.logDefault(statusConfirmation.GetFeatureName()).Infof("firmware status updated to %v", status)
+	handler.logDefault(statusConfirmation.GetFeatureName()).Debugf("firmware status updated to %v", status)
 }
 
 func (handler *ChargePointHandler) updateFirmware(location string, retrieveDate *types.DateTime, retries int, retryInterval int) {
